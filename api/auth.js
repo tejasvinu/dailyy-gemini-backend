@@ -1,4 +1,3 @@
-import { VercelRequest, VercelResponse } from '@vercel/node';
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../src/models/User');

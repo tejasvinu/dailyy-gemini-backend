@@ -1,8 +1,7 @@
-import { VercelRequest, VercelResponse } from '@vercel/node';
 const Note = require('../src/models/Note');
 const auth = require('../src/middleware/auth');
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method === 'GET') {
     // Get all notes for a user
     try {
@@ -48,3 +47,4 @@ export default async function handler(req, res) {
     res.status(405).json({ message: 'Method Not Allowed' });
   }
 }
+module.exports = handler;
