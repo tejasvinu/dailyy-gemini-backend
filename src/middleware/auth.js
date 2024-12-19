@@ -1,6 +1,11 @@
 const jwt = require('jsonwebtoken');
 
 const auth = (req, res, next) => {
+  // Allow OPTIONS requests to pass through
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader) {
