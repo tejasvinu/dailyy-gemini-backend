@@ -21,4 +21,6 @@ const auth = (req, res, next) => {
   }
 };
 
+// ...existing code...
+
 module.exports = auth;

@@ -2,14 +2,25 @@
   "version": 2,
   "builds": [
     {
-      "src": "api/**/*.js",
-      "use": "@vercel/node"
+      "src": "./index.py",
+      "use": "@vercel/python"
     }
   ],
-  "routes": [
+  "rewrites": [
+    { "source": "/(.*)", "destination": "src/app.js" }
+  ],
+  "headers": [
     {
-      "src": "/api/(.*)",
-      "dest": "/api/$1.js"
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "https://dailly-gemini.vercel.app" }
+      ]
+    },
+    {
+      "source": "/vercel_app_domain_name/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "https://dailly-gemini.vercel.app" }
+      ]
     }
   ]
 }
