@@ -2,24 +2,20 @@
   "version": 2,
   "builds": [
     {
-      "src": "./index.py",
-      "use": "@vercel/python"
+      "src": "./src/index.js",
+      "use": "@vercel/node"
     }
   ],
   "rewrites": [
-    { "source": "/(.*)", "destination": "src/app.js" }
+    { "source": "/api/(.*)", "destination": "/src/api/$1.js" }
   ],
   "headers": [
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "https://dailly-gemini.vercel.app" }
-      ]
-    },
-    {
-      "source": "/vercel_app_domain_name/(.*)",
-      "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "https://dailly-gemini.vercel.app" }
+        { "key": "Access-Control-Allow-Origin", "value": "https://dailly-gemini.vercel.app" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET,POST,PUT,DELETE,OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization" }
       ]
     }
   ]
