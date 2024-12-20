@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose'
 
 const noteSchema = new mongoose.Schema({
   user: {
@@ -10,6 +10,7 @@ const noteSchema = new mongoose.Schema({
     type: String,
     required: true
   }
-}, { timestamps: true });
+}, { timestamps: true })
 
-module.exports = mongoose.model('Note', noteSchema);
+export default mongoose.models.Note || mongoose.model('Note', noteSchema)
+
