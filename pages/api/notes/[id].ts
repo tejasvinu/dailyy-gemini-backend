@@ -3,9 +3,9 @@ import connectDB from '../../../lib/connectDB'
 import Note from '../../../models/Note'
 import { authMiddleware } from '../../../middleware/auth'
 
-connectDB()
-
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  await connectDB()
+  
   if (req.method === 'OPTIONS') {
     return res.status(200).end()
   }
