@@ -4,9 +4,8 @@ import User from '../../../models/User'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 
-connectDB()
-
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  await connectDB()
   // Handle OPTIONS request
   if (req.method === 'OPTIONS') {
     return res.status(200).end()
