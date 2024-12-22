@@ -31,7 +31,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       try {
         const note = new Note({
           content: req.body.content,
-          user: (req as any).user.userId
+          user: (req as any).user.userId,
+          status: req.body.status || 'active'
         })
         const savedNote = await note.save()
         res.status(201).json(savedNote)

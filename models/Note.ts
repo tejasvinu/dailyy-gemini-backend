@@ -9,6 +9,11 @@ const noteSchema = new mongoose.Schema({
   content: {
     type: String,
     required: true
+  },
+  status: {
+    type: String,
+    enum: ['active', 'completed'],
+    default: 'active'
   }
 }, { timestamps: true })
 
