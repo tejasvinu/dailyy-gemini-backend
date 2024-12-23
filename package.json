@@ -9,19 +9,19 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "googleapis": "^144.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^7.0.0",
     "next": "latest",
     "react": "latest",
-    "react-dom": "latest",
-    "mongoose": "^7.0.0",
-    "bcryptjs": "^2.4.3",
-    "jsonwebtoken": "^9.0.0"
+    "react-dom": "latest"
   },
   "devDependencies": {
-    "@types/react": "latest",
-    "@types/node": "latest",
     "@types/bcryptjs": "^2.4.2",
     "@types/jsonwebtoken": "^9.0.1",
+    "@types/node": "latest",
+    "@types/react": "latest",
     "typescript": "latest"
   }
 }
-
