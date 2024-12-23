@@ -1,7 +1,7 @@
 
 import { google } from 'googleapis'
 import type { NextApiRequest, NextApiResponse } from 'next'
-import authMiddleware from '../../middleware/auth'
+import { authMiddleware } from '../../../middleware/auth'
 
 interface AuthUser {
   error?: string;
