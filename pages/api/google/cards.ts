@@ -4,8 +4,11 @@ import { authMiddleware } from '../../../middleware/auth';
 import { corsMiddleware } from '../../../middleware/cors';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-const model = genAI.getGenerativeModel({ 
+const flashCardModel = genAI.getGenerativeModel({ 
   model: "gemini-2.0-flash-exp",
+});
+const chatModel = genAI.getGenerativeModel({ 
+  model: "learnlm-1.5-pro-experimental",
 });
 
 const generationConfig = {
@@ -16,7 +19,7 @@ const generationConfig = {
 };
 
 export async function createFlashCards(topic: string) {
-  const chatSession = model.startChat({ generationConfig });
+  const chatSession = flashCardModel.startChat({ generationConfig });
   const prompt = `Generate 5 flash cards about ${topic}. 
     Return ONLY a JSON array with this exact format, no extra text or markdown:
     [
@@ -40,7 +43,7 @@ export async function createFlashCards(topic: string) {
 }
 
 export async function chatWithAI(message: string, context: string) {
-  const chatSession = model.startChat({ generationConfig });
+  const chatSession = chatModel.startChat({ generationConfig });
   const prompt = `Context: ${context}\n\nUser: ${message}`;
   const result = await chatSession.sendMessage(prompt);
   return result.response.text();
