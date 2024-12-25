@@ -19,6 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const { method } = req
+  console.log('req.user.tokens', (req as any).user.tokens)
 
   switch (method) {
     case 'GET':

@@ -3,6 +3,7 @@ import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory, Tool, SchemaType,
 import { authMiddleware } from '../../../middleware/auth';
 import { corsMiddleware } from '../../../middleware/cors';
 import Note from '../../../models/Note';
+import { oauth2Client, calendar } from '../../../lib/googleConfig';
 
 const apiKey = process.env.GEMINI_API_KEY!;
 const genAI = new GoogleGenerativeAI(apiKey!);
@@ -73,6 +74,63 @@ async function viewNotes(userId: string) {
     }
 }
 
+// Calendar management functions
+async function createCalendarEvent(summary: string, description: string, startTime: string, endTime: string) {
+    try {
+        const event = {
+            summary,
+            description,
+            start: { dateTime: startTime },
+            end: { dateTime: endTime },
+        };
+        const response = await calendar.events.insert({
+            calendarId: 'primary',
+            requestBody: event,
+        });
+        return JSON.stringify(response.data);
+    } catch (error: any) {
+        console.error('createCalendarEvent error:', error);
+        throw new Error(`Calendar API Error: ${error.message}`);
+    }
+}
+
+async function viewCalendarEvents(timeMin: string, timeMax: string) {
+    try {
+        const response = await calendar.events.list({
+            calendarId: 'primary',
+            timeMin: timeMin || new Date().toISOString(),
+            timeMax: timeMax || new Date(new Date().setHours(23, 59, 59, 999)).toISOString(),
+            maxResults: 10,
+            singleEvents: true,
+            orderBy: 'startTime',
+        });
+        return JSON.stringify(response.data.items || []);
+    } catch (error: any) {
+        console.error('viewCalendarEvents error:', error);
+        throw new Error(`Calendar API Error: ${error.message}`);
+    }
+}
+
+async function updateCalendarEvent(eventId: string, summary?: string, description?: string, startTime?: string, endTime?: string) {
+    try {
+        const event: any = {};
+        if (summary) event.summary = summary;
+        if (description) event.description = description;
+        if (startTime) event.start = { dateTime: new Date(startTime).toISOString() };
+        if (endTime) event.end = { dateTime: new Date(endTime).toISOString() };
+
+        const response = await calendar.events.patch({
+            calendarId: 'primary',
+            eventId,
+            requestBody: event,
+        });
+        return JSON.stringify(response.data);
+    } catch (error: any) {
+        console.error('updateCalendarEvent error:', error);
+        throw new Error(`Calendar API Error: ${error.message}`);
+    }
+}
+
 // Update tool declarations to be more explicit about user context
 const toolDeclarations: Tool[] = [
     {
@@ -136,6 +194,80 @@ const toolDeclarations: Tool[] = [
                         },
                     },
                     required: ["noteId", "status"],
+                },
+            },
+            {
+                name: "createCalendarEvent",
+                description: "Creates a new calendar event",
+                parameters: {
+                    type: SchemaType.OBJECT,
+                    properties: {
+                        summary: {
+                            type: SchemaType.STRING,
+                            description: "Title of the event",
+                        },
+                        description: {
+                            type: SchemaType.STRING,
+                            description: "Description of the event",
+                        },
+                        startTime: {
+                            type: SchemaType.STRING,
+                            description: "Start time in ISO format",
+                        },
+                        endTime: {
+                            type: SchemaType.STRING,
+                            description: "End time in ISO format",
+                        },
+                    },
+                    required: ["summary", "startTime", "endTime"],
+                },
+            },
+            {
+                name: "viewCalendarEvents",
+                description: "Retrieves calendar events within a time range",
+                parameters: {
+                    type: SchemaType.OBJECT,
+                    properties: {
+                        timeMin: {
+                            type: SchemaType.STRING,
+                            description: "Start time (defaults to today)",
+                        },
+                        timeMax: {
+                            type: SchemaType.STRING,
+                            description: "End time (defaults to end of today)",
+                        },
+                    },
+                    required: [], // Make parameters optional
+                },
+            },
+            {
+                name: "updateCalendarEvent",
+                description: "Updates an existing calendar event",
+                parameters: {
+                    type: SchemaType.OBJECT,
+                    properties: {
+                        eventId: {
+                            type: SchemaType.STRING,
+                            description: "ID of the event to update",
+                        },
+                        summary: {
+                            type: SchemaType.STRING,
+                            description: "New title of the event",
+                        },
+                        description: {
+                            type: SchemaType.STRING,
+                            description: "New description of the event",
+                        },
+                        startTime: {
+                            type: SchemaType.STRING,
+                            description: "New start time in ISO format",
+                        },
+                        endTime: {
+                            type: SchemaType.STRING,
+                            description: "New end time in ISO format",
+                        },
+                    },
+                    required: ["eventId"],
                 },
             }
         ]
@@ -210,25 +342,49 @@ const generationConfig = {
 
 // Replace the existing export with a default handler using Next.js types
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+    // Debug logging
+    console.log('Incoming request:', {
+        method: req.method,
+        headers: req.headers,
+        body: req.body,
+        query: req.query
+    });
+
     // Apply CORS middleware
     await corsMiddleware(req, res);
 
     if (req.method === 'OPTIONS') {
-        return res.status(200).end();
+        res.status(200).end();
+        return;
     }
 
     // Apply authentication middleware
     try {
         await authMiddleware(req, res);
     } catch (error) {
-        return res.status(401).json({ error: 'Authentication failed' });
+        res.status(401).json({ error: 'Authentication failed' });
+        return;
     }
 
     if (req.method === 'POST') {
         try {
-            const { message, history, assistantType } = req.body;
+            const { message, history, assistantType, googleAuthToken } = req.body;
             const userId = (req as any).user.userId;
             const model = assistantType === 'chill' ? chillModel : tutorModel;
+
+            // Parse and set Google OAuth credentials
+            if (googleAuthToken) {
+                try {
+                    const parsedToken = JSON.parse(
+                        Buffer.from(googleAuthToken.split('.')[1], 'base64').toString()
+                    );
+                    oauth2Client.setCredentials(parsedToken.tokens);
+                } catch (tokenError) {
+                    console.error('Error parsing Google token:', tokenError);
+                    res.status(401).json({ error: 'Invalid Google authentication' });
+                    return;
+                }
+            }
 
             const chatSession = model.startChat({
                 generationConfig,
@@ -240,69 +396,123 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
             const result = await chatSession.sendMessage(message);
             const response = result.response;
+            let finalResponse = null;
 
             // Process tool calls
             if (response.candidates && response.candidates[0].content.parts) {
                 for (const part of response.candidates[0].content.parts) {
                     if (part.functionCall) {
-                        console.log('Function call detected:', part.functionCall);
-                        const functionName = part.functionCall.name;
-                        const args = part.functionCall.args as any;
+                        try {
+                            console.log('Function call detected:', part.functionCall);
+                            const functionName = part.functionCall.name;
+                            const args = part.functionCall.args as any;
 
-                        let functionResponse;
-                        switch (functionName) {
-                            case 'viewNotes':
-                                console.log('Calling viewNotes');
-                                functionResponse = await viewNotes(userId);
-                                break;
-                            case 'createNote':
-                                console.log('Calling createNote');
-                                functionResponse = await createNote(args.content, userId);
-                                break;
-                            case 'deleteNote':
-                                console.log('Calling deleteNote');
-                                functionResponse = await deleteNote(args.noteId, userId);
-                                break;
-                            case 'updateNoteStatus':
-                                console.log('Calling updateNoteStatus');
-                                functionResponse = await updateNoteStatus(args.noteId, userId, args.status);
-                                break;
-                            default:
-                                console.log('Unknown function:', functionName);
-                                functionResponse = null;
-                                break;
-                        }
+                            let functionResponse;
+                            switch (functionName) {
+                                case 'viewNotes':
+                                    console.log('Calling viewNotes');
+                                    functionResponse = await viewNotes(userId);
+                                    break;
+                                case 'createNote':
+                                    console.log('Calling createNote');
+                                    functionResponse = await createNote(args.content, userId);
+                                    break;
+                                case 'deleteNote':
+                                    console.log('Calling deleteNote');
+                                    functionResponse = await deleteNote(args.noteId, userId);
+                                    break;
+                                case 'updateNoteStatus':
+                                    console.log('Calling updateNoteStatus');
+                                    functionResponse = await updateNoteStatus(args.noteId, userId, args.status);
+                                    break;
+                                case 'createCalendarEvent':
+                                    console.log('Calling createCalendarEvent');
+                                    functionResponse = await createCalendarEvent(
+                                        args.summary,
+                                        args.description,
+                                        args.startTime,
+                                        args.endTime
+                                    );
+                                    break;
+                                case 'viewCalendarEvents':
+                                    console.log('Calling viewCalendarEvents');
+                                    functionResponse = await viewCalendarEvents(
+                                        args.timeMin,
+                                        args.timeMax
+                                    );
+                                    break;
+                                case 'updateCalendarEvent':
+                                    console.log('Calling updateCalendarEvent');
+                                    functionResponse = await updateCalendarEvent(
+                                        args.eventId,
+                                        args.summary,
+                                        args.description,
+                                        args.startTime,
+                                        args.endTime
+                                    );
+                                    break;
+                                default:
+                                    console.log('Unknown function:', functionName);
+                                    functionResponse = null;
+                                    break;
+                            }
 
-                        if (functionResponse) {
-                            console.log('Function response:', functionResponse);
-                            const functionResult = await chatSession.sendMessage([{
-                                functionResponse: {
-                                    name: functionName,
-                                    response: {
-                                        content: JSON.parse(functionResponse)
-                                    }
+                            if (functionResponse) {
+                                console.log('Function response:', functionResponse);
+                                try {
+                                    const parsedResponse = JSON.parse(functionResponse);
+                                    const functionResult = await chatSession.sendMessage([{
+                                        functionResponse: {
+                                            name: functionName,
+                                            response: {
+                                                content: parsedResponse
+                                            }
+                                        }
+                                    }]);
+
+                                    finalResponse = {
+                                        response: functionResult.response.text(),
+                                        functionCall: {
+                                            name: functionName,
+                                            result: parsedResponse
+                                        }
+                                    };
+                                } catch (error) {
+                                    console.error('Error processing function response:', error);
+                                    res.status(500).json({ error: 'Error processing function response' });
+                                    return;
                                 }
-                            }]);
-
-                            return res.status(200).json({
-                                response: functionResult.response.text(),
-                                functionCall: {
-                                    name: functionName,
-                                    result: JSON.parse(functionResponse)
-                                }
+                            }
+                        } catch (toolError: any) {
+                            console.error('Tool execution error:', toolError);
+                            res.status(500).json({ 
+                                error: 'Tool execution failed', 
+                                details: toolError.message 
                             });
+                            return;
                         }
                     }
                 }
             }
 
-            res.status(200).json({ response: response.text() });
+            // Send final response
+            if (finalResponse) {
+                res.status(200).json(finalResponse);
+            } else {
+                res.status(200).json({ response: response.text() });
+            }
         } catch (error: any) {
             console.error('Handler error:', error);
-            res.status(500).json({ error: 'Internal Server Error', details: error.message });
+            res.status(500).json({ 
+                error: 'Internal Server Error', 
+                details: error.message,
+                stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            });
+            return;
         }
     } else {
         res.setHeader('Allow', ['POST']);
         res.status(405).json({ error: `Method ${req.method} Not Allowed` });
+        return;
     }
 }
