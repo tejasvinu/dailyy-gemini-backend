@@ -75,14 +75,21 @@ async function viewNotes(userId: string) {
 }
 
 // Calendar management functions
-async function createCalendarEvent(summary: string, description: string, startTime: string, endTime: string) {
+async function createCalendarEvent(summary: string, description: string, startTime: string, endTime: string, timeZone: string = 'UTC') {
     try {
         const event = {
             summary,
             description,
-            start: { dateTime: startTime },
-            end: { dateTime: endTime },
+            start: { 
+                dateTime: startTime,
+                timeZone: timeZone
+            },
+            end: { 
+                dateTime: endTime,
+                timeZone: timeZone
+            },
         };
+        console.log('createCalendarEvent called with:', event);
         const response = await calendar.events.insert({
             calendarId: 'primary',
             requestBody: event,
@@ -368,6 +375,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (req.method === 'POST') {
         try {
+            // Get timezone from request headers or default to UTC
+            const timeZone = req.headers['x-timezone'] as string || 'UTC';
+            
             const { message, history, assistantType, googleAuthToken } = req.body;
             const userId = (req as any).user.userId;
             const model = assistantType === 'chill' ? chillModel : tutorModel;
@@ -431,7 +441,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                                         args.summary,
                                         args.description,
                                         args.startTime,
-                                        args.endTime
+                                        args.endTime,
+                                        timeZone
                                     );
                                     break;
                                 case 'viewCalendarEvents':
