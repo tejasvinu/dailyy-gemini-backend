@@ -170,7 +170,7 @@ const tutorModel = genAI.getGenerativeModel({
 });
 
 const chillModel = genAI.getGenerativeModel({
-    model: "gemini-2.0-flash-exp",
+    model: "gemini-exp-1206",
     safetySettings: [
         {
             category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
