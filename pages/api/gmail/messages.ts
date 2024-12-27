@@ -62,47 +62,50 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       oauth2Client.setCredentials((req as any).user.tokens)
       const gmail = google.gmail({ version: 'v1', auth: oauth2Client })
 
-      // Calculate date 3 days ago (adjust time zone if needed)
+      // Calculate date 3 days ago
       const threeDaysAgo = new Date()
       threeDaysAgo.setDate(threeDaysAgo.getDate() - 3)
-
-      // Format date explicitly for the query
       const year = threeDaysAgo.getFullYear()
       const month = (threeDaysAgo.getMonth() + 1).toString().padStart(2, '0')
       const day = threeDaysAgo.getDate().toString().padStart(2, '0')
       const formattedDate = `${year}/${month}/${day}`
 
-      // Get messages from last 3 days (start with a broad query)
       const response = await gmail.users.messages.list({
         userId: 'me',
-        q: `after:${formattedDate}`, // Broad query first
-        maxResults: 50 // Increase maxResults for testing
+        q: `after:${formattedDate}`,
+        maxResults: 10 // Reduced from 50 to 10
       })
 
       const messages = response.data.messages || []
       const detailedMessages = await Promise.all(
         messages.map(async (message) => {
           try {
-            const detail = await gmail.users.messages.get({
-              userId: 'me',
-              id: message.id!,
-              format: 'metadata',
-              metadataHeaders: ['From', 'Subject', 'Date']
-            })
-            return detail.data
+            const detail = await Promise.race([
+              gmail.users.messages.get({
+                userId: 'me',
+                id: message.id!,
+                format: 'metadata',
+                metadataHeaders: ['From', 'Subject', 'Date']
+              }),
+              new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Request timeout')), 8000))
+            ])
+            return (detail as any).data
           } catch (error) {
             console.error("Error fetching message details:", error)
-            return null; // Handle error gracefully
+            return null
           }
         })
       )
 
+      const validMessages = detailedMessages.filter(Boolean)
+      
       if (req.query.summary === 'true') {
-        const summary = await generateSummary(detailedMessages.filter(Boolean))
+        const summary = await generateSummary(validMessages)
         return res.status(200).json({ summary })
       }
 
-      res.status(200).json(detailedMessages.filter(Boolean)) // Filter out null values
+      res.status(200).json(validMessages)
     } catch (error: any) {
       res.status(500).json({ error: error.message })
     }
